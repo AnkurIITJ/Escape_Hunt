@@ -51,6 +51,7 @@ Drone drones[DRONE_COUNT];
 int bullets = MAX_BULLETS;
 float playerHealth = MAX_HEALTH;
 bool isRvisible=false;
+bool isHvisible=false;
 Vector3 exitposition;
 int minutes,seconds;
 
@@ -73,14 +74,13 @@ int main() {
     InitAudioDevice();
     Vector2 mouse=GetMousePosition();
     Camera3D camera = {
-        .position = (Vector3){ 1.0f, 2.0f, 0.0f },
+        .position = (Vector3){ 1.0f, 1.50f, 0.0f },
         .target = (Vector3){mouse.x,0.0f,mouse.y},
         .up = (Vector3){ 0.0f, 1.0f, 0.0f },
         .fovy = 60.0f,
         .projection = CAMERA_PERSPECTIVE
     };
-    camera.position.y += sinf(GetTime() * 2.0f) * 0.01f;
-
+    
     LoadAssets();
 
     Vector3 reloadkit_position = { 5, 0, 5 };
@@ -88,6 +88,13 @@ int main() {
     BoundingBox base_reloadkit_box = GetModelBoundingBox(reloadkit);
     reload_box.min = Vector3Add(reloadkit_position, base_reloadkit_box.min);
     reload_box.max = Vector3Add(reloadkit_position, base_reloadkit_box.max);
+
+    Vector3 health_position = { -5, 0, 5 };
+    BoundingBox health_box = GetModelBoundingBox(health);
+    BoundingBox base_health_box = GetModelBoundingBox(health);
+    health_box.min = Vector3Add(health_position, Vector3Multiply(base_health_box.min,(Vector3){0.05f,0.05f,0.05f}));
+    health_box.max = Vector3Add(health_position, Vector3Multiply(base_health_box.min,(Vector3){0.05f,0.05f,0.05f}));
+
 
     for (int i = 0; i < DRONE_COUNT; i++) {
         drones[i].model = LoadModel("drone.glb");
@@ -205,7 +212,9 @@ do{
             float distance = Vector3Distance(camera.position, drones[i].position);
             if (distance < DETECTION_RANGE) {
                 drones[i].isActive = true;
-                if(drones[i].isActive)playerHealth -= 0.1f;
+                if(drones[i].isActive){
+                    playerHealth -= 0.1f;
+                }
                 if(playerHealth<0){
                     playerHealth=0.0f;
                     UnloadAssets();
@@ -232,6 +241,13 @@ do{
         }
         else isRvisible=false;
         if(IsKeyPressed(KEY_R))PlaySound(gunchuck);
+        //================healthkit==============
+        if (ispointed(health_box, cameraray) && Vector3Distance(camera.position,health_position) < DISTANCE_RELOADKIT){
+            isHvisible=true;
+            if(IsKeyDown(KEY_H))playerHealth+=10;
+            if(playerHealth<=MAX_HEALTH) playerHealth=MAX_HEALTH;
+        }
+        else isHvisible=false;
         // =========== COUNTING DRONES LEFT ==========
         dronesleft=0;
         for(int i=0;i<DRONE_COUNT;i++){
@@ -245,7 +261,9 @@ do{
           const char *time_text=TextFormat("Time--> %d:%d",minutes,seconds);
            const  char *drones_text=TextFormat("Total Drones left : %d/%d",dronesleft, DRONE_COUNT);
            const  char *reload_text="PRESS R to reload";
-        // ========== DRAWING ==========
+        // ==========camera movement==========
+        if(IsKeyDown(KEY_W)||IsKeyDown(KEY_A)||IsKeyDown(KEY_S)||IsKeyDown(KEY_D))camera.position.y += sinf(GetTime() * 6.0f) * 0.006f;
+        else camera.position.y += sinf(GetTime() * 2.0f) * 0.001f;
         BeginDrawing();
         ClearBackground(RAYWHITE);
 
@@ -255,13 +273,14 @@ do{
             DrawModel(cube,(Vector3){50, 0, -20},1.0f,WHITE);//test cube for size compariosn
             DrawModel(cube,(Vector3){-50, 0, 20},1.0f,WHITE);//test cube for size compariosn
             DrawModel(cube,(Vector3){-50, 0, -20},1.0f,WHITE);//test cube for size compariosn
-            DrawModel(health, (Vector3){0, 0, 0}, 0.05f, GRAY);
+            DrawModel(health, health_position, 0.05f, GRAY);
             DrawModel(skybox, (Vector3){0, 0, 0}, 500.0f, WHITE);
             DrawBillboard(camera,tree,(Vector3){0,15.0f/2,0},15.0f,WHITE);
             DrawModel(exit_game,exitposition,0.5,WHITE);
            // DrawModel(map,(Vector3){0, -10.0f, 0}, 100.0f, WHITE);
             DrawModel(reloadkit, reloadkit_position, 1.0f, WHITE);
             DrawBoundingBox(reload_box, RED);
+            DrawBoundingBox(health_box, RED);
 
             for (int i = 0; i < DRONE_COUNT; i++) {
                 if (drones[i].isrender) {
@@ -290,6 +309,7 @@ do{
         DrawText(time_text, (SCREEN_WIDTH - MeasureText(time_text,50))/2, 10, 50, BLACK);
         DrawText(drones_text, 611-MeasureText(drones_text,30), 50, 30, YELLOW); //end at 611 x
         if(isRvisible)DrawText(reload_text,30,200,40,RED);
+        if(isHvisible)DrawText("PRESS H TO INCREASE HEALTH BY 10",30,200,40,RED);
         if(isInMap(camera.position.x,camera.position.z))DrawText("in the map",30,400,40,RED);
         
 
