@@ -13,17 +13,18 @@
 #define SCREEN_WIDTH 1920
 #define SCREEN_HEIGHT 1080
 #define MAX_BULLETS 20
-#define DRONE_SPEED 0.06f
-#define DETECTION_RANGE 20.0f
-#define DRONE_COUNT 3
+#define DRONE_SPEED 0.1f
+#define DETECTION_RANGE 30.0f
+#define DRONE_COUNT 20
 #define MAX_HEALTH  100
 #define DRONEHIT 2
 #define SHOOT_FRAMES 10
 #define SPEED 0.1f
 #define NEAR_DRONE 2.0f
+#define DRONE_DAMAGE 0.1f
 #define DISTANCE_RELOADKIT 3.0f
 #define DRONE_HEIGHT 7.0f
-#define DISTANCE_BETWEEN_DRONES 10.0f
+#define DISTANCE_BETWEEN_DRONES 0.1f
 #define DRONE_TIMER 1.0f
 
 // ========== STRUCTS ==========
@@ -40,8 +41,8 @@ typedef struct {
 
 // ========== GLOBAL VARIABLES ==========
 Model health,skybox, reloadkit,map,cube,exit_game;
-Sound gunshot, gunchuck, reloading;
-Texture2D gunUI[SHOOT_FRAMES],UI,tree;
+Sound gunshot, gunchuck, reloading,lesshealth;
+Texture2D gunUI[SHOOT_FRAMES],UI,tree,redblood,screenalpha;
 Image icon;
 
 int gunFrame = 0,dronesleft;
@@ -51,8 +52,9 @@ Drone drones[DRONE_COUNT];
 int bullets = MAX_BULLETS;
 float playerHealth = MAX_HEALTH;
 bool isRvisible=false;
+bool anydroneactive=false;
 bool isHvisible=false;
-Vector3 exitposition;
+Vector3 exitposition,olddronespos[DRONE_COUNT];
 int minutes,seconds;
 
 // ========== FUNCTION DECLARATIONS ==========
@@ -61,7 +63,7 @@ void UnloadAssets();
 int ispointed(BoundingBox bound, Ray cameraray);
 bool isInMap(float x,float z);
 bool isdronesnear(int j);
-Vector3 dronepos(int j);
+Vector3 dronepos(int j,Vector3 player);
 void timeconversion(int *a,int*b);
 // ========== MAIN FUNCTION ==========
 int main() {
@@ -72,14 +74,33 @@ int main() {
     UnloadImage(icon);
     DisableCursor();
     InitAudioDevice();
-    Vector2 mouse=GetMousePosition();
     Camera3D camera = {
         .position = (Vector3){ 1.0f, 1.50f, 0.0f },
-        .target = (Vector3){mouse.x,0.0f,mouse.y},
+        .target = (Vector3){0.0f,0.0f,0.0f},
         .up = (Vector3){ 0.0f, 1.0f, 0.0f },
         .fovy = 60.0f,
         .projection = CAMERA_PERSPECTIVE
     };
+    //=================setting position of exit and camera==============
+Vector2 fivelocation[5]={                                //x,z
+    {40.0f,-39.999f},
+    {0.0f,-39.999f},
+    {-40.0f,-39.999f},
+    {20.0f,39.999f},
+    {-20.0f,39.999f}
+};
+int random=GetRandomValue(0,4);
+camera.position.x=fivelocation[random].x;
+camera.position.z=fivelocation[random].y;
+int random2;
+do{
+    random2=GetRandomValue(0,4);
+}
+    while(random2==random);
+        exitposition.x=fivelocation[random2].x;
+        exitposition.z=fivelocation[random2].y;
+    
+//===================================
     
     LoadAssets();
 
@@ -100,57 +121,23 @@ int main() {
         drones[i].model = LoadModel("drone.glb");
         drones[i].isrender = true;
         drones[i].isActive = false;
-        drones[i].position = dronepos(i);
+        drones[i].position = dronepos(i,camera.position);
         drones[i].hit = 0;
         drones[i].ispaused=false;
         drones[i].bound = GetModelBoundingBox(drones[i].model);
     }
-//=================setting position of exit and camera==============
-Vector2 fivelocation[5]={                                //x,z
-    {40.0f,-39.9f},
-    {0.0f,-39.9f},
-    {-40.0f,-39.9f},
-    {20.0f,39.9f},
-    {-20.0f,39.9f}
-};
-int random=GetRandomValue(0,4);
-camera.position.x=fivelocation[random].x;
-camera.position.z=fivelocation[random].y;
-int random2;
-do{
-    random2=GetRandomValue(0,4);
-}
-    while(random2==random);
-        exitposition.x=fivelocation[random2].x;
-        exitposition.z=fivelocation[random2].y;
-    
 
 //=====================================
     while (!WindowShouldClose()) {
+        Vector3 oldcampos=camera.position;
         UpdateCamera(&camera,CAMERA_FIRST_PERSON);
+        if(!isInMap(camera.position.x,camera.position.z)){
+            camera.position=oldcampos;
+        }
         Ray cameraray = GetMouseRay((Vector2){SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2}, camera);
         float bob = sinf(GetTime() * 6.0f) * 0.006f;
         if((IsKeyDown(KEY_W)||IsKeyDown(KEY_A)))camera.position.y+=bob;
 
-     /*   //==========MOVEMENT COLLISON===========
-        Vector3 future_position=camera.position;
-        Vector3 forward_direction=Vector3Normalize(Vector3Subtract(camera.target,camera.position));
-        Vector3 perpendicular_direction=Vector3Normalize(Vector3CrossProduct(forward_direction,(Vector3){0.0f,1.0f,0.0f}));
-        if(IsKeyDown(KEY_W)) future_position=Vector3Add(camera.position,Vector3Scale(forward_direction,SPEED));
-        if(IsKeyDown(KEY_S))future_position=Vector3Add(camera.position,Vector3Scale(forward_direction,-SPEED));
-        if(IsKeyDown(KEY_A))
-        {
-            future_position=Vector3Add(camera.position,Vector3Scale(perpendicular_direction,-SPEED));
-        camera.target=Vector3Add(camera.target,Vector3Scale(perpendicular_direction,-SPEED));
-        }
-        if(IsKeyDown(KEY_D)){
-            future_position=Vector3Add(camera.position,Vector3Scale(perpendicular_direction,SPEED));
-            camera.target=Vector3Add(camera.target,Vector3Scale(perpendicular_direction,SPEED));
-        }
-        if(1){
-            camera.position=future_position;
-        }
-*/
         // === Gun Shooting ===
         if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && bullets > 0) {
             PlaySound(gunshot);
@@ -192,42 +179,36 @@ do{
                     if(j!=i && drones[i].isrender && drones[j].isrender){
                         float distance = Vector3Distance(drones[i].position,drones[j].position);
                     if(distance<DISTANCE_BETWEEN_DRONES){
-                        if (i<j) {
-                            drones[j].ispaused = true; 
-                          
-                        } else {
-                            drones[i].ispaused = true;
-                
-                        
-                        }
+                        if (GetRandomValue(0, 1)) drones[i].ispaused = true;
+                        else drones[j].ispaused = true;
                     }
-                    
                 }
-            }
-            //=========is in map?=========
-            if(!isInMap(drones[i].position.x,drones[i].position.z)){
-                drones[i].ispaused = true;
             }
          //=============================================
             float distance = Vector3Distance(camera.position, drones[i].position);
-            if (distance < DETECTION_RANGE) {
+          
+            if (distance < DETECTION_RANGE && drones[i].isrender) {
                 drones[i].isActive = true;
                 if(drones[i].isActive){
-                    playerHealth -= 0.1f;
+                    playerHealth -= DRONE_DAMAGE;
                 }
                 if(playerHealth<0){
                     playerHealth=0.0f;
-                    UnloadAssets();
+                  //  UnloadAssets();
                 }
 
                 Vector3 dir = Vector3Normalize(Vector3Subtract(Vector3Add(camera.position, (Vector3){1.0f, 1.0f, 1.0f}), drones[i].position));
                 if (distance > NEAR_DRONE && !drones[i].ispaused) {
-                    drones[i].position = Vector3Add(drones[i].position, Vector3Scale(dir, DRONE_SPEED));
+                    drones[i].position = Vector3Add(drones[i].position,Vector3Scale(dir,DRONE_SPEED));
                 } else {
                     drones[i].position.y += sinf(GetTime() * 4.0f) * 0.01f;
                 }
             }
+             else{
+                drones[i].isActive=false;
+             }
             drones[i].position.y=DRONE_HEIGHT;
+        }
         // === Reloading Logic ===
         if (ispointed(reload_box, cameraray) && Vector3Distance(camera.position, reloadkit_position) < DISTANCE_RELOADKIT) {
             isRvisible=true;
@@ -239,8 +220,12 @@ do{
                 PlaySound(gunchuck);
             }
         }
-        else isRvisible=false;
-        if(IsKeyPressed(KEY_R))PlaySound(gunchuck);
+        else {
+            isRvisible=false;
+        }
+        if(IsKeyPressed(KEY_R)){
+            PlaySound(gunchuck);
+        }
         //================healthkit==============
         if (ispointed(health_box, cameraray) && Vector3Distance(camera.position,health_position) < DISTANCE_RELOADKIT){
             isHvisible=true;
@@ -250,9 +235,24 @@ do{
         else isHvisible=false;
         // =========== COUNTING DRONES LEFT ==========
         dronesleft=0;
+        float alpha=0.0f;
+        anydroneactive=false;
         for(int i=0;i<DRONE_COUNT;i++){
-            if(drones[i].isrender==true)
-            dronesleft++;
+            if(drones[i].isrender==true)  dronesleft++;
+            if(drones[i].isActive==true){
+           anydroneactive=true;
+        }
+    }
+        if (anydroneactive) {
+            alpha = 0.3f+(sin(GetTime()*6.0f)*0.3f);
+            if (alpha < 0.0f)alpha=0.0f;
+        
+            if (!IsSoundPlaying(lesshealth)) {
+                PlaySound(lesshealth); // Play only once while active
+            }
+        } else {
+            alpha = 0.0f;
+            StopSound(lesshealth);
         }
              //======== TEXTS ============
 
@@ -295,7 +295,9 @@ do{
         int gunX = SCREEN_WIDTH - gunUI[gunFrame].width;
         int gunY = SCREEN_HEIGHT - gunUI[gunFrame].height;
         DrawTexture(gunUI[gunFrame], gunX, gunY, WHITE);
-
+        //redblood
+        DrawTexture(redblood,0,0,Fade(WHITE,alpha));
+        DrawTexture(screenalpha,0,0,Fade(RED,0.2));
         // Crosshair & HUD
         DrawRectangle(SCREEN_WIDTH-(50+400),SCREEN_HEIGHT - 75, 400, 20, GRAY);  //length 400
         DrawRectangle(SCREEN_WIDTH-(50+400),SCREEN_HEIGHT - 75, playerHealth*4, 20, RED); 
@@ -317,7 +319,7 @@ do{
     }
     
    
-}
+
  void UnloadAssets();
     return 0;
 }
@@ -336,15 +338,15 @@ void LoadAssets() {
    icon =LoadImage("./icon.png");
    exit_game=LoadModel("./exit.glb");
    tree=LoadTexture("./tree.png");
+   redblood=LoadTexture("./redblood.png");
+   screenalpha=LoadTexture("./screenalpha.png");
+   lesshealth=LoadSound("./lessplayerhealth.mp3");
     char path[64];
     for (int i = 0; i < SHOOT_FRAMES; i++) {
         sprintf(path, "./gun animation shoot/shoot%d.png", i);
         gunUI[i] = LoadTexture(path);
     }
 }
-
-
-
 //============= UNLOAD ASSETS==========
  void UnloadAssets(){
  for (int i = 0; i < DRONE_COUNT; i++) UnloadModel(drones[i].model);
@@ -357,9 +359,12 @@ void LoadAssets() {
  UnloadSound(gunshot);
  UnloadSound(reloading);
  UnloadSound(gunchuck);
+ UnloadSound(lesshealth);
  UnloadModel(reloadkit);
  UnloadModel(exit_game);
  UnloadTexture(tree);
+ UnloadTexture(redblood);
+ UnloadTexture(screenalpha);
  CloseAudioDevice();
  CloseWindow();
 }
@@ -389,12 +394,12 @@ bool isdronesnear(int j){
     }
     return false;
 }
-Vector3 dronepos(int j){
-    Vector3 pos = {GetRandomValue(-50,50)*1.0f,DRONE_HEIGHT,GetRandomValue(-40,40)*1.0f};
-    while (isInMap(pos.x,pos.z) && !isdronesnear(j))
-    {
-        pos=(Vector3){GetRandomValue(-50,50)*1.0f,DRONE_HEIGHT,GetRandomValue(-40,40)*1.0f};
-    }
+Vector3 dronepos(int j,Vector3 player){
+    Vector3 pos;
+   do{
+     pos = (Vector3){GetRandomValue(-50,50)*1.0f,DRONE_HEIGHT,GetRandomValue(-40,40)*1.0f};
+   } 
+    while (!isInMap(pos.x,pos.z)&&isdronesnear(j)&&Vector3Distance(player,pos)<DETECTION_RANGE);
     return pos;
 }
 void timeconversion(int *a,int*b){
