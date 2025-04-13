@@ -452,7 +452,7 @@ void gamewindow()
                     return;
                 }
 
-                Vector3 dir = Vector3Normalize(Vector3Subtract(Vector3Add(camera.position, (Vector3){1.0f, 1.0f, 1.0f}), drones[i].position));
+                Vector3 dir = Vector3Normalize(Vector3Subtract(camera.position,drones[i].position));
                 if (distance > NEAR_DRONE && !drones[i].ispaused)
                 {
                     drones[i].position = Vector3Add(drones[i].position, Vector3Scale(dir, DRONE_SPEED));
