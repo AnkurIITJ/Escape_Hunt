@@ -13,16 +13,20 @@
 #define SCREEN_WIDTH 1920
 #define SCREEN_HEIGHT 1080
 #define MAX_BULLETS 20
+#define DRONE_SPEED 0.6f
+#define DETECTION_RANGE 35.0f
+#define DRONE_COUNT 10
 #define MAX_HEALTH  100
+#define DRONEHIT 2
 #define SHOOT_FRAMES 10
 #define SPEED 0.1f
 #define NEAR_DRONE 2.0f
+#define DRONE_DAMAGE 0.1f
 #define DISTANCE_RELOADKIT 3.0f
 #define DRONE_HEIGHT 13.0f
 #define DISTANCE_BETWEEN_DRONES 2.0f
 #define DRONE_TIMER 1.0f
-//=================easy medium hard============
-int DRONEHIT,DRONE_DAMAGE,DETECTION_RANGE,DRONE_SPEED,DRONE_COUNT;
+
 // ========== STRUCTS ==========
 typedef struct {
     Vector3 position;
@@ -41,13 +45,6 @@ typedef enum MenuState {
     MENU_DIFFICULTY
 } MenuState;
 
-typedef enum windowstate{
-    main_win,
-    game,
-    win,
-    lose,
-}windowstate;
-
 typedef enum MainOption {
     MAIN_START,
     MAIN_EXIT
@@ -64,10 +61,7 @@ Model health,skybox, reloadkit,map,cube,exit_game;
 Sound gunshot, gunchuck, reloading,lesshealth;
 Texture2D gunUI[SHOOT_FRAMES],UI,tree,redblood,screenalpha;
 Image icon;
-DifficultyOption difficultyOption;
-windowstate window = main_win;
 
-BoundingBox reload_box,health_box;
 int gunFrame = 0,dronesleft;
 float gunTimer = 0.0f,drone_scale=3.0f;
 bool gunAnim = false;
@@ -77,24 +71,8 @@ float playerHealth = MAX_HEALTH;
 bool isRvisible=false;
 bool anydroneactive=false;
 bool isHvisible=false;
-Vector3 exitposition,olddronespos[DRONE_COUNT],reloadkit_position,health_position;
-int minutes,seconds;.0
-//===================================
-Camera3D camera = {
-    .position = (Vector3){ 1.0f, 2.0f, 0.0f },
-    .target = (Vector3){0.0f,0.0f,0.0f},
-    .up = (Vector3){ 0.0f, 1.0f, 0.0f },
-    .fovy = 60.0f,
-    .projection = CAMERA_PERSPECTIVE
-};
-//=================setting position of exit and camera==============
-Vector2 fivelocation[5]={                                //x,z
-{40.0f,-59.9f},
-{0.0f,-59.9f},
-{-40.0f,-59.9f},
-{20.0f,59.9f},
-{-20.0f,59.9f}
-};
+Vector3 exitposition,olddronespos[DRONE_COUNT];
+int minutes,seconds;
 
 // ========== FUNCTION DECLARATIONS ==========
 void LoadAssets();
@@ -107,56 +85,16 @@ Vector3 dronepos(int j,Vector3 player);
 void timeconversion(int *a,int*b);
 void gamewindow();
 void menu();
-//=================================
-
 // ========== MAIN FUNCTION ==========
 int main() {
     SetConfigFlags(FLAG_FULLSCREEN_MODE);
     InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "ESCAPE HUNT!");
-    while(!WindowShouldClose){
-    if(window==main_win)main();
-    if(window==game)gamewindow();
- //   if(window==win)win_window();
-  //  if(window==lose)lose_window();
-    }
-    CloseWindow();
+  menu();
   return 0;
 }
 
 // ========== LOAD ASSETS ==========
 void LoadAssets() {
- 
-    int random=GetRandomValue(0,4);
-    camera.position.x=fivelocation[random].x;
-    camera.position.z=fivelocation[random].y;
-    int random2;
-    do{
-    random2=GetRandomValue(0,4);
-    }
-    while(random2==random);
-        exitposition.x=fivelocation[random2].x;
-        exitposition.z=fivelocation[random2].y;
-    
-    //===================================
-    
-;
-    
-    
-    for (int i = 0; i < DRONE_COUNT; i++) {
-        drones[i].model = LoadModel("drone.glb");
-        drones[i].isrender = true;
-        drones[i].isActive = false;
-        drones[i].position = dronepos(i,camera.position);
-        drones[i].hit = 0;
-        drones[i].ispaused=false;
-        drones[i].bound = GetModelBoundingBox(drones[i].model);
-    }
-    // ========== MAIN FUNCTION ==========
-
-
-
-
-    //===========================
     health = LoadModel("./health.glb");
     skybox = LoadModel("./skybox.glb");
     gunshot = LoadSound("./gunshot.mp3");
@@ -245,29 +183,61 @@ SetWindowIcon(icon);
 UnloadImage(icon);
 DisableCursor();
 InitAudioDevice();
-if(difficultyOption==DIFF_EASY){
-   DRONE_COUNT=10;
-   DRONE_SPEED=0.5f;
-   DRONE_DAMAGE=0.1f;
-   DETECTION_RANGE=30.0f;
-   DRONEHIT=2;
+Camera3D camera = {
+    .position = (Vector3){ 1.0f, 2.0f, 0.0f },
+    .target = (Vector3){0.0f,0.0f,0.0f},
+    .up = (Vector3){ 0.0f, 1.0f, 0.0f },
+    .fovy = 60.0f,
+    .projection = CAMERA_PERSPECTIVE
+};
+//=================setting position of exit and camera==============
+Vector2 fivelocation[5]={                                //x,z
+{40.0f,-59.9f},
+{0.0f,-59.9f},
+{-40.0f,-59.9f},
+{20.0f,59.9f},
+{-20.0f,59.9f}
+};
+int random=GetRandomValue(0,4);
+camera.position.x=fivelocation[random].x;
+camera.position.z=fivelocation[random].y;
+int random2;
+do{
+random2=GetRandomValue(0,4);
 }
-if(difficultyOption==DIFF_MEDIUM){
+while(random2==random);
+    exitposition.x=fivelocation[random2].x;
+    exitposition.z=fivelocation[random2].y;
 
-    DRONE_COUNT=15;
-    DRONE_SPEED=0.7f;
-    DRONE_DAMAGE=0.2f;
-    DETECTION_RANGE=35.0f;
-    DRONEHIT=3;
+//===================================
+
+LoadAssets();
+
+Vector3 reloadkit_position = { 5, 0, 5 };
+BoundingBox reload_box = GetModelBoundingBox(reloadkit);
+BoundingBox base_reloadkit_box = GetModelBoundingBox(reloadkit);
+reload_box.min = Vector3Add(reloadkit_position, base_reloadkit_box.min);
+reload_box.max = Vector3Add(reloadkit_position, base_reloadkit_box.max);
+
+Vector3 health_position = { -5, 0, 5 };
+BoundingBox health_box = GetModelBoundingBox(health);
+BoundingBox base_health_box = GetModelBoundingBox(health);
+health_box.min = Vector3Add(health_position, Vector3Multiply(base_health_box.min,(Vector3){0.05f,0.05f,0.05f}));
+health_box.max = Vector3Add(health_position, Vector3Multiply(base_health_box.max,(Vector3){0.05f,0.05f,0.05f}));
+
+
+for (int i = 0; i < DRONE_COUNT; i++) {
+    drones[i].model = LoadModel("drone.glb");
+    drones[i].isrender = true;
+    drones[i].isActive = false;
+    drones[i].position = dronepos(i,camera.position);
+    drones[i].hit = 0;
+    drones[i].ispaused=false;
+    drones[i].bound = GetModelBoundingBox(drones[i].model);
 }
-if(difficultyOption==DIFF_HARD){
-    DRONE_COUNT=20;
-    DRONE_SPEED=0.9f;
-    DRONE_DAMAGE=0.3f;
-    DETECTION_RANGE=40.0f;
-    DRONEHIT=4;
-}
-    LoadAssets();
+
+//=====================================
+while (!WindowShouldClose()) {
     Vector3 oldcampos=camera.position;
     UpdateCamera(&camera,CAMERA_FIRST_PERSON);
     if(!isInMap(camera.position.x,camera.position.z)&& IsObstructed(oldcampos,camera.position,map)){
@@ -401,7 +371,7 @@ if(difficultyOption==DIFF_HARD){
         alpha = 0.0f;
         StopSound(lesshealth);
     }           
-     //======== TEXTS ============
+         //======== TEXTS ============
 
       const char *text_bullets=TextFormat("AMMO LEFT : %d/%d", bullets, MAX_BULLETS);
       timeconversion( &minutes, &seconds);
@@ -463,17 +433,12 @@ if(difficultyOption==DIFF_HARD){
    // if(isInMap(camera.position.x,camera.position.z))DrawText("in the map",30,400,40,RED);
     
 
-    EndDrawing(); 
-
-    if(playerHealth==0){
-      window=lose;
-UnloadAssets();
+    EndDrawing();
 }
-if(dronesleft==0 && Vector3Distance(camera.position,exitposition)<1.0f){
-      window=win;
-      UnloadAssets();
-}   
 
+
+
+void UnloadAssets();
 }
 
 bool IsObstructed(Vector3 from, Vector3 to, Model mapModel) {
@@ -503,6 +468,14 @@ bool IsObstructed(Vector3 from, Vector3 to, Model mapModel) {
     SetTargetFPS(60);
     DisableCursor();
 
+    Font titleFont = LoadFont("assets/escape_font.fnt");
+
+    // Load background music and sound
+    Music bgMusic = LoadMusicStream("assets/menu_music.mp3");
+    Sound selectSound = LoadSound("assets/select.wav");
+    PlayMusicStream(bgMusic);
+    bgMusic.looping = true;
+
     MenuState menuState = MENU_MAIN;
     MainOption mainSelected = MAIN_START;
     DifficultyOption difficultySelected = DIFF_EASY;
@@ -513,28 +486,31 @@ bool IsObstructed(Vector3 from, Vector3 to, Model mapModel) {
     const char *mainOptions[2] = {"START", "EXIT"};
     const char *difficultyOptions[3] = {"EASY", "MEDIUM", "HARD"};
 
+    while (!WindowShouldClose()) {
+        UpdateMusicStream(bgMusic);
+
         // Handle input
         if (menuState == MENU_MAIN) {
             if (IsKeyPressed(KEY_DOWN)) {
-    
+                PlaySound(selectSound);
                 mainSelected = (mainSelected == MAIN_EXIT) ? MAIN_START : MAIN_EXIT;
             } else if (IsKeyPressed(KEY_UP)) {
-
+                PlaySound(selectSound);
                 mainSelected = (mainSelected == MAIN_START) ? MAIN_EXIT : MAIN_START;
-            } else if (IsKeyPressed(KEY_ENTER) && mainSelected == MAIN_START) {
+            } else if (IsKeyPressed(KEY_RIGHT) && mainSelected == MAIN_START) {
+                PlaySound(selectSound);
                 menuState = MENU_DIFFICULTY;
                 difficultySelected = DIFF_EASY;
             }
-        } 
-        else if (menuState == MENU_DIFFICULTY) {
+        } else if (menuState == MENU_DIFFICULTY) {
             if (IsKeyPressed(KEY_DOWN)) {
-        
+                PlaySound(selectSound);
                 difficultySelected = (difficultySelected + 1) % 3;
             } else if (IsKeyPressed(KEY_UP)) {
-        
+                PlaySound(selectSound);
                 difficultySelected = (difficultySelected + 2) % 3;
             } else if (IsKeyPressed(KEY_LEFT)) {
-
+                PlaySound(selectSound);
                 menuState = MENU_MAIN;
             }
         }
@@ -546,7 +522,10 @@ bool IsObstructed(Vector3 from, Vector3 to, Model mapModel) {
         // Title
         const char *titleText = "ESCAPE PROTOCOL";
         int titleSize = 80;
-        DrawText(titleText,(screenWidth - MeasureText(titleText,5)-705)/ 2, screenHeight / 6, 5, WHITE);
+        Vector2 titleSizeVec = MeasureTextEx(titleFont, titleText, titleSize, 5);
+        DrawTextEx(titleFont, titleText,
+                   (Vector2){(screenWidth - titleSizeVec.x-705)/ 2, screenHeight / 6},
+                   titleSize, 5, WHITE);
 
         // Main Menu
         if (menuState == MENU_MAIN) {
@@ -575,11 +554,22 @@ bool IsObstructed(Vector3 from, Vector3 to, Model mapModel) {
         }
 
         EndDrawing();
-             window=game;
+
         // Exit check
         if (menuState == MENU_MAIN && mainSelected == MAIN_EXIT && IsKeyPressed(KEY_ENTER)) {
-            CloseWindow();
+            break;
         }
-    
 
+        // TODO: Start the game after choosing difficulty
+        if (menuState == MENU_DIFFICULTY && IsKeyPressed(KEY_ENTER)) {
+            gamewindow();
+            menuState = MENU_MAIN;
+        }
+    }
+
+    // Cleanup
+    UnloadFont(titleFont);
+    UnloadMusicStream(bgMusic);
+    UnloadSound(selectSound);
+    UnloadAssets();
 }
