@@ -7,20 +7,20 @@
 // ========== sare DEFINES ==========
 #define SCREEN_WIDTH 1920
 #define SCREEN_HEIGHT 1080
-#define MAX_BULLETS 20
+#define MAX_BULLETS 25
 #define DRONE_SPEED 0.1f
 #define DETECTION_RANGE 35.0f
-#define DRONE_COUNT 0
+#define DRONE_COUNT 10
 #define MAX_HEALTH 100
 #define DRONEHIT 2
 #define SHOOT_FRAMES 10
 #define NEAR_DRONE 2.0f
-#define DRONE_DAMAGE 0.1f
+#define DRONE_DAMAGE 0.08f
 #define DISTANCE_RELOADKIT 3.0f
 #define DRONE_HEIGHT 12.0f
 #define DISTANCE_BETWEEN_DRONES 2.0f
 #define INCREASE_HEALTH 10
-#define SHOOTING_RANGE 40.0f
+#define SHOOTING_RANGE 70.0f
 #define WIN_DISTANCE 5.0f
 
 // ========== drone ka structure ==========
@@ -38,7 +38,7 @@ typedef struct
 
 // ========== GLOBAL VARIABLES ==========
 Model health, skybox, reloadkit, map, cube, exit_game; // skybox=clouds,cube is test cube,exit_game model
-Sound gunshot, gunchuck, reloading, lesshealth;
+Sound gunshot, gunchuck, reloading, lesshealth,join;
 Texture2D gunUI[SHOOT_FRAMES], UI, tree, redblood, screenalpha;
 Image icon;
 
@@ -94,7 +94,7 @@ void LoadAssets()
     redblood = LoadTexture("./redblood.png");
     screenalpha = LoadTexture("./screenalpha.png");
     lesshealth = LoadSound("./lessplayerhealth.mp3");
-
+    join=LoadSound("joining_audio.mp3");
     char path[64];
     for (int i = 0; i < SHOOT_FRAMES; i++)
     {
@@ -119,6 +119,7 @@ void UnloadAssets()
     UnloadSound(reloading);
     UnloadSound(gunchuck);
     UnloadSound(lesshealth);
+    UnloadSound(join);
     UnloadModel(reloadkit);
     UnloadModel(exit_game);
     UnloadTexture(tree);
@@ -214,7 +215,8 @@ void winwindow()
 {
     InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "VICTORY!");
     SetTargetFPS(60);
-
+   Sound win=LoadSound("victory_audio.mp3");
+   bool playsound=true;
     while (!WindowShouldClose())
     {
         BeginDrawing();
@@ -226,6 +228,9 @@ void winwindow()
         int textWidth = MeasureText(victoryText, fontSize);
         DrawText(victoryText, (SCREEN_WIDTH - textWidth) / 2, SCREEN_HEIGHT / 2 - 50, fontSize, GREEN);
 
+        if(playsound==true) PlaySound(win);
+         playsound=false;
+
         // Draw instruction
         const char *instruction = "Press ENTER key to return to menu";
         fontSize = 40;
@@ -239,7 +244,7 @@ void winwindow()
             break;
         }
     }
-
+  UnloadSound(win);
     CloseWindow();
     startmenu();
 }
@@ -248,7 +253,8 @@ void losewindow()
 {
     InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "GAME OVER");
     SetTargetFPS(60);
-
+    Sound lose=LoadSound("Lose_audio.mp3");
+    bool playsound=true;
     while (!WindowShouldClose())
     {
         BeginDrawing();
@@ -259,7 +265,8 @@ void losewindow()
         int fontSize = 100;
         int textWidth = MeasureText(gameOverText, fontSize);
         DrawText(gameOverText, (SCREEN_WIDTH - textWidth) / 2, SCREEN_HEIGHT / 2 - 50, fontSize, RED);
-
+       if(playsound==true) PlaySound(lose);
+         playsound=false;
         // Draw instruction
         const char *instruction = "Press ENTER key to return to menu";
         fontSize = 40;
@@ -267,13 +274,13 @@ void losewindow()
         DrawText(instruction, (SCREEN_WIDTH - textWidth) / 2, SCREEN_HEIGHT / 2 + 50, fontSize, WHITE);
 
         EndDrawing();
-
+ 
         if (IsKeyPressed(KEY_ENTER))
         {
             break;
         }
     }
-
+     UnloadSound(lose);
     CloseWindow();
     startmenu();
 }
@@ -564,7 +571,8 @@ void gamewindow()
 
         const char *drones_text = TextFormat("Total Drones left : %d/%d", dronesleft, DRONE_COUNT);
         const char *reload_text = "PRESS R to reload";
-
+        //=============entryyy===============
+        bool playsound=true;
         // ==========camera movement==========
         if (IsKeyDown(KEY_W) || IsKeyDown(KEY_A) || IsKeyDown(KEY_S) || IsKeyDown(KEY_D))
             camera.position.y += sinf(GetTime() * 6.0f) * 0.006f;
@@ -583,6 +591,9 @@ void gamewindow()
         //====================drawing area==================
         BeginDrawing();
         ClearBackground(RAYWHITE);
+
+        if(playsound==true) PlaySound(join);
+        playsound=false;
 
         BeginMode3D(camera);
         DrawModel(health, health_position, 0.1f, GRAY);
