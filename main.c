@@ -1,16 +1,16 @@
-// ========== INCLUDES ==========
+// ========== jo bhi INCLUDES hai==========
 #include "raylib.h"
 #include "raymath.h"
 #include <stdio.h>
 #include <math.h>
 
-// ========== DEFINES ==========
+// ========== sare DEFINES ==========
 #define SCREEN_WIDTH 1920
 #define SCREEN_HEIGHT 1080
 #define MAX_BULLETS 20
 #define DRONE_SPEED 0.1f
 #define DETECTION_RANGE 35.0f
-#define DRONE_COUNT 5
+#define DRONE_COUNT 0
 #define MAX_HEALTH 100
 #define DRONEHIT 2
 #define SHOOT_FRAMES 10
@@ -23,7 +23,7 @@
 #define SHOOTING_RANGE 40.0f
 #define WIN_DISTANCE 5.0f
 
-// ========== STRUCTS ==========
+// ========== drone ka structure ==========
 typedef struct
 {
     Vector3 position;
@@ -37,7 +37,7 @@ typedef struct
 } Drone;
 
 // ========== GLOBAL VARIABLES ==========
-Model health, skybox, reloadkit, map, cube, exit_game;
+Model health, skybox, reloadkit, map, cube, exit_game; // skybox=clouds,cube is test cube,exit_game model
 Sound gunshot, gunchuck, reloading, lesshealth;
 Texture2D gunUI[SHOOT_FRAMES], UI, tree, redblood, screenalpha;
 Image icon;
@@ -54,13 +54,13 @@ bool isHvisible = false;
 Vector3 exitposition;
 int minutes, seconds;
 
-// ========== FUNCTION DECLARATIONS ==========
+// ========== functions jo bhi banaye hai==========
 void LoadAssets();
 void UnloadAssets();
-int ispointed(BoundingBox bound, Ray cameraray);     //for reloasding and health
-bool isInMap(float x, float z);     //map coordinates
-bool isdronesnear(int j);  // checks  is near to this  drone with index j with drones[<j]
-bool IsObstructed(Vector3 from, Vector3 to, Model mapModel);   // if a ray 
+int ispointed(BoundingBox bound, Ray cameraray);             // for reloading and health
+bool isInMap(float x, float z);                              // map coordinates
+bool isdronesnear(int j);                                    // checks  is near to this  drone with index j with drones[<j]
+bool IsObstructed(Vector3 from, Vector3 to, Model mapModel); // if a model is within  coordinates 'from' to 'to'.
 Vector3 dronepos(int j, Vector3 player);
 void timeconversion(int *a, int *b);
 void gamewindow();
@@ -152,7 +152,7 @@ bool isInMap(float x, float z)
     else
         return false;
 }
-
+//==================IF ANY DRONE IS NEAR=====================
 bool isdronesnear(int j)
 {
     for (int i = 0; i < j; i++)
@@ -163,7 +163,7 @@ bool isdronesnear(int j)
     }
     return false;
 }
-
+//============assigning drone postions matching friendly conditions=====================
 Vector3 dronepos(int j, Vector3 player)
 {
     Vector3 pos;
@@ -178,7 +178,7 @@ Vector3 dronepos(int j, Vector3 player)
 
     return pos;
 }
-
+// ============convert time from gettime() {raylib functions} to minutes and seconds==================
 void timeconversion(int *a, int *b)
 {
     long time = GetTime();
@@ -209,7 +209,7 @@ bool IsObstructed(Vector3 from, Vector3 to, Model mapModel)
 
     return false; // No obstruction
 }
-
+//===================all the windows used in this game========================
 void winwindow()
 {
     InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "VICTORY!");
@@ -294,7 +294,7 @@ void gamewindow()
     };
 
     //=================setting position of exit and camera==============
-    Vector2 fivelocation[5] = {// x,z
+    Vector2 fivelocation[5] = {// x,zs for camera and exit positions
                                {40.0f, -59.9f},
                                {0.0f, -59.9f},
                                {-40.0f, -59.9f},
@@ -302,13 +302,14 @@ void gamewindow()
                                {-20.0f, 59.9f}};
 
     Vector3 fourlocations[4] = {
+        // positions for health and reload kits
         {15, 0, 19},
         {-15, 0, -19},
         {15, 0, 19},
         {-15, 0, -19},
     };
 
-    //============camera and exit==============
+    //============ getting camera and exit random positions ==============
     int random = GetRandomValue(0, 4);
     camera.position.x = fivelocation[random].x;
     camera.position.z = fivelocation[random].y;
@@ -323,7 +324,7 @@ void gamewindow()
     exitposition.y = 0.0f; // Ensure exit is at ground level
 
     LoadAssets();
-
+    //===================setting bounding box of resources======================
     Vector3 reloadkit_position = fourlocations[GetRandomValue(0, 3)];
 
     BoundingBox reload_box = GetModelBoundingBox(reloadkit);
@@ -342,7 +343,7 @@ void gamewindow()
     BoundingBox base_health_box = GetModelBoundingBox(health);
     health_box.min = Vector3Add(health_position, Vector3Multiply(base_health_box.min, (Vector3){0.1f, 0.1f, 0.1f}));
     health_box.max = Vector3Add(health_position, Vector3Multiply(base_health_box.max, (Vector3){0.1f, 0.1f, 0.1f}));
-
+    //==================setting up drones======================
     for (int i = 0; i < DRONE_COUNT; i++)
     {
         drones[i].model = LoadModel("drone.glb");
@@ -361,12 +362,12 @@ void gamewindow()
     {
         Vector3 oldcampos = camera.position;
         UpdateCamera(&camera, CAMERA_FIRST_PERSON);
-        if (!isInMap(camera.position.x, camera.position.z) && IsObstructed(oldcampos, camera.position, map))
+        if (!isInMap(camera.position.x, camera.position.z) && IsObstructed(oldcampos, camera.position, map)) // if camera is in restricted area..looks like collision
         {
             camera.position = oldcampos;
         }
         Ray cameraray = GetMouseRay((Vector2){SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2}, camera);
-        float bob = sinf(GetTime() * 6.0f) * 0.006f;
+        float bob = sinf(GetTime() * 6.0f) * 0.01f;
         if ((IsKeyDown(KEY_W) || IsKeyDown(KEY_A)))
             camera.position.y += bob;
 
@@ -396,7 +397,7 @@ void gamewindow()
             }
         }
 
-        // === Drone Logic ===
+        //====================Drone Logic=====================
         for (int i = 0; i < DRONE_COUNT; i++)
         {
             BoundingBox baseBox = GetModelBoundingBox(drones[i].model);
@@ -474,7 +475,7 @@ void gamewindow()
                 drones[i].position = drones[i].prevpos;
             }
         }
-        // === Reloading Logic ===
+        //================Reloading Logic===================
         if (ispointed(reload_box, cameraray) && Vector3Distance(camera.position, reloadkit_position) < DISTANCE_RELOADKIT)
         {
             isRvisible = true;
@@ -509,7 +510,7 @@ void gamewindow()
         else
             isHvisible = false;
 
-        // =========== COUNTING DRONES LEFT ==========
+        // =========== COUNTING DRONES LEFT AND BLOOD OVERLAY ==========
         dronesleft = 0;
         float alpha = 0.0f;
         anydroneactive = false;
@@ -544,19 +545,19 @@ void gamewindow()
         const char *text_bullets = TextFormat("AMMO LEFT : %d/%d", bullets, MAX_BULLETS);
         timeconversion(&minutes, &seconds);
         const char *time_text;
-        if (minutes % 10 == 0 && seconds % 10 == 0)
+        if (minutes / 10 == 0 && seconds / 10 == 0)
         {
             time_text = TextFormat("Time--> 0%d:0%d", minutes, seconds);
         }
-        if (minutes % 10 == 0 && seconds % 10 != 0)
+        if (minutes / 10 == 0 && seconds / 10 != 0)
         {
             time_text = TextFormat("Time--> 0%d:%d", minutes, seconds);
         }
-        if (minutes % 10 != 0 && seconds % 10 == 0)
+        if (minutes / 10 != 0 && seconds / 10 == 0)
         {
             time_text = TextFormat("Time--> %d:0%d", minutes, seconds);
         }
-        if (minutes % 10 != 0 && seconds % 10 != 0)
+        if (minutes / 10 != 0 && seconds / 10 != 0)
         {
             time_text = TextFormat("Time--> %d:%d", minutes, seconds);
         }
