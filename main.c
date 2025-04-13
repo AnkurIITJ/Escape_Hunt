@@ -13,9 +13,9 @@
 #define SCREEN_WIDTH 1920
 #define SCREEN_HEIGHT 1080
 #define MAX_BULLETS 20
-#define DRONE_SPEED 0.6f
+#define DRONE_SPEED 0.3f
 #define DETECTION_RANGE 35.0f
-#define DRONE_COUNT 10
+#define DRONE_COUNT 5
 #define MAX_HEALTH  100
 #define DRONEHIT 2
 #define SHOOT_FRAMES 10
@@ -23,8 +23,8 @@
 #define NEAR_DRONE 2.0f
 #define DRONE_DAMAGE 0.1f
 #define DISTANCE_RELOADKIT 3.0f
-#define DRONE_HEIGHT 13.0f
-#define DISTANCE_BETWEEN_DRONES 2.0f
+#define DRONE_HEIGHT 17.0f
+#define DISTANCE_BETWEEN_DRONES 3.0f
 #define DRONE_TIMER 1.0f
 
 // ========== STRUCTS ==========
@@ -42,7 +42,6 @@ typedef struct {
 
 typedef enum MenuState {
     MENU_MAIN,
-    MENU_DIFFICULTY
 } MenuState;
 
 typedef enum MainOption {
@@ -50,11 +49,7 @@ typedef enum MainOption {
     MAIN_EXIT
 } MainOption;
 
-typedef enum DifficultyOption {
-    DIFF_EASY,
-    DIFF_MEDIUM,
-    DIFF_HARD
-} DifficultyOption;
+
 
 // ========== GLOBAL VARIABLES ==========
 Model health,skybox, reloadkit,map,cube,exit_game;
@@ -71,7 +66,7 @@ float playerHealth = MAX_HEALTH;
 bool isRvisible=false;
 bool anydroneactive=false;
 bool isHvisible=false;
-Vector3 exitposition,olddronespos[DRONE_COUNT];
+Vector3 exitposition;
 int minutes,seconds;
 
 // ========== FUNCTION DECLARATIONS ==========
@@ -89,7 +84,7 @@ void menu();
 int main() {
     SetConfigFlags(FLAG_FULLSCREEN_MODE);
     InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "ESCAPE HUNT!");
-  menu();
+  gamewindow();
   return 0;
 }
 
@@ -284,23 +279,25 @@ while (!WindowShouldClose()) {
             }
         }
         //=======drone inter collison===========
-            for(int j=0;j<DRONE_COUNT;j++){
-                if(j!=i && drones[i].isrender && drones[j].isrender){
-                    float distance = Vector3Distance(drones[i].position,drones[j].position);
-                if(distance<DISTANCE_BETWEEN_DRONES){
-                    if (GetRandomValue(0, 1)) drones[i].ispaused = true;
-                    else drones[j].ispaused = true;
+        drones[i].ispaused = false;
+        for (int j = i + 1; j < DRONE_COUNT; j++) {
+            if (drones[i].isrender && drones[j].isrender) {
+                float distance = Vector3Distance(drones[i].position, drones[j].position);
+                if (distance < DISTANCE_BETWEEN_DRONES) {
+                    // Apply pause to one side only to avoid conflict
+                    drones[i].ispaused = true;
+                    break; // Optional: only react to first nearby drone
                 }
             }
         }
+        
      //=============================================
         float distance = Vector3Distance(camera.position, drones[i].position);
       
         if (distance < DETECTION_RANGE && drones[i].isrender && isInMap(drones[i].position.x,drones[i].position.z)) {
             drones[i].isActive = true;
-            if(drones[i].isActive){
-                playerHealth -= DRONE_DAMAGE;
-            }
+            playerHealth -= DRONE_DAMAGE;
+        
             if(playerHealth<0){
                 playerHealth=0.0f;
               //  UnloadAssets();
@@ -311,7 +308,7 @@ while (!WindowShouldClose()) {
                 drones[i].position = Vector3Add(drones[i].position,Vector3Scale(dir,DRONE_SPEED));
             }
              else {
-                drones[i].position.y += sinf(GetTime() * 4.0f) * 0.01f;
+                drones[i].position = drones[i].prevpos;
             }
         }
          else{
@@ -322,8 +319,14 @@ while (!WindowShouldClose()) {
             drones[i].position=drones[i].prevpos;
         }
         drones[i].position.y=DRONE_HEIGHT;
-//======================setting prev pos==========================
-    drones[i].prevpos=drones[i].position;
+        //==================================================
+        if (!drones[i].ispaused && isInMap(drones[i].position.x, drones[i].position.z)) {
+            drones[i].prevpos = drones[i].position;
+        } else {
+            drones[i].position = drones[i].prevpos;
+        }
+        
+
 }                                                                           
     // === Reloading Logic ===
     if (ispointed(reload_box, cameraray) && Vector3Distance(camera.position, reloadkit_position) < DISTANCE_RELOADKIT) {
@@ -345,7 +348,7 @@ while (!WindowShouldClose()) {
     //================healthkit==============
     if (ispointed(health_box, cameraray) && Vector3Distance(camera.position,health_position) < DISTANCE_RELOADKIT){
         isHvisible=true;
-        if(IsKeyDown(KEY_H))playerHealth+=10;
+        if(IsKeyPressed(KEY_H))playerHealth+=5;
         if(playerHealth>=MAX_HEALTH) playerHealth=MAX_HEALTH;
     }
     else isHvisible=false;
@@ -463,7 +466,7 @@ bool IsObstructed(Vector3 from, Vector3 to, Model mapModel) {
     return false; // No obstruction
 }
 
- void menu(){
+/*void menu(){
     InitAudioDevice();
     SetTargetFPS(60);
     DisableCursor();
@@ -478,13 +481,12 @@ bool IsObstructed(Vector3 from, Vector3 to, Model mapModel) {
 
     MenuState menuState = MENU_MAIN;
     MainOption mainSelected = MAIN_START;
-    DifficultyOption difficultySelected = DIFF_EASY;
+
 
     int screenWidth = GetScreenWidth();
     int screenHeight = GetScreenHeight();
 
     const char *mainOptions[2] = {"START", "EXIT"};
-    const char *difficultyOptions[3] = {"EASY", "MEDIUM", "HARD"};
 
     while (!WindowShouldClose()) {
         UpdateMusicStream(bgMusic);
@@ -499,22 +501,9 @@ bool IsObstructed(Vector3 from, Vector3 to, Model mapModel) {
                 mainSelected = (mainSelected == MAIN_START) ? MAIN_EXIT : MAIN_START;
             } else if (IsKeyPressed(KEY_RIGHT) && mainSelected == MAIN_START) {
                 PlaySound(selectSound);
-                menuState = MENU_DIFFICULTY;
-                difficultySelected = DIFF_EASY;
+                gamewindow();
             }
-        } else if (menuState == MENU_DIFFICULTY) {
-            if (IsKeyPressed(KEY_DOWN)) {
-                PlaySound(selectSound);
-                difficultySelected = (difficultySelected + 1) % 3;
-            } else if (IsKeyPressed(KEY_UP)) {
-                PlaySound(selectSound);
-                difficultySelected = (difficultySelected + 2) % 3;
-            } else if (IsKeyPressed(KEY_LEFT)) {
-                PlaySound(selectSound);
-                menuState = MENU_MAIN;
-            }
-        }
-
+        } 
         // Drawing
         BeginDrawing();
         ClearBackground(BLACK);
@@ -538,38 +527,16 @@ bool IsObstructed(Vector3 from, Vector3 to, Model mapModel) {
             }
         }
 
-        // Difficulty Menu
-        else if (menuState == MENU_DIFFICULTY) {
-            DrawText("CHOOSE DIFFICULTY:",
-                     screenWidth / 2 - MeasureText("CHOOSE DIFFICULTY:", 30) / 2,
-                     screenHeight / 2 - 50, 30, WHITE);
-
-            for (int i = 0; i < 3; i++) {
-                Color color = (i == difficultySelected) ? ORANGE : GRAY;
-                DrawText(difficultyOptions[i],
-                         screenWidth / 2 - MeasureText(difficultyOptions[i], 30) / 2,
-                         screenHeight / 2 + i * 50,
-                         30, color);
-            }
+         
         }
 
         EndDrawing();
 
-        // Exit check
-        if (menuState == MENU_MAIN && mainSelected == MAIN_EXIT && IsKeyPressed(KEY_ENTER)) {
-            break;
-        }
-
-        // TODO: Start the game after choosing difficulty
-        if (menuState == MENU_DIFFICULTY && IsKeyPressed(KEY_ENTER)) {
-            gamewindow();
-            menuState = MENU_MAIN;
-        }
-    }
+    
 
     // Cleanup
     UnloadFont(titleFont);
     UnloadMusicStream(bgMusic);
     UnloadSound(selectSound);
     UnloadAssets();
-}
+}*/
