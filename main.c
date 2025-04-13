@@ -13,19 +13,19 @@
 #define SCREEN_WIDTH 1920
 #define SCREEN_HEIGHT 1080
 #define MAX_BULLETS 20
-#define DRONE_SPEED 0.2f
-#define DETECTION_RANGE 20.0f
-#define DRONE_COUNT 1
+#define DRONE_SPEED 0.1f
+#define DETECTION_RANGE 35.0f
+#define DRONE_COUNT 5
 #define MAX_HEALTH  100
-#define DRONEHIT 3
+#define DRONEHIT 2
 #define SHOOT_FRAMES 10
 #define NEAR_DRONE 2.0f
 #define DRONE_DAMAGE 0.1f
 #define DISTANCE_RELOADKIT 3.0f
 #define DRONE_HEIGHT 12.0f
-#define DISTANCE_BETWEEN_DRONES 0.5f
-#define DRONE_TIMER 1.0f
+#define DISTANCE_BETWEEN_DRONES 2.0f
 #define INCREASE_HEALTH 10
+#define SHOOTING_RANGE 40.0f
 
 // ========== STRUCTS ==========
 typedef struct {
@@ -60,6 +60,7 @@ bool isHvisible=false;
 Vector3 exitposition;
 int minutes,seconds;
 
+
 // ========== FUNCTION DECLARATIONS ==========
 void LoadAssets();
 void UnloadAssets();
@@ -70,12 +71,14 @@ bool IsObstructed(Vector3 from, Vector3 to, Model mapModel);
 Vector3 dronepos(int j,Vector3 player);
 void timeconversion(int *a,int*b);
 void gamewindow();
-void menu();
 // ========== MAIN FUNCTION ==========
 int main() {
     SetConfigFlags(FLAG_FULLSCREEN_MODE);
-    InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "ESCAPE HUNT!");
-  gamewindow();
+    InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "EXIT HUNT!");
+    InitAudioDevice();
+    SetTargetFPS(60);
+    DisableCursor();
+    gamewindow();
   return 0;
 }
 
@@ -130,6 +133,7 @@ int ispointed(BoundingBox bound, Ray cameraray) {
 }
 
 //==========POSITION CHECK ==============
+
 bool isInMap(float x,float z){   //-+ 3 for narrowing
     if(x<47.0f && x>-47.0f && z>-20.0f && z<20.0f)return true;  //for centre road
     else if(x<47.0f && x>33.0f && z>-60.0f && z<-20.0f)return true; //r1
@@ -140,22 +144,27 @@ bool isInMap(float x,float z){   //-+ 3 for narrowing
     else if(x<27.0f && x>13.0f && z>20.0f && z<60.0f)return true; //r5
     else return false;
 }
+//================NEAR DRONE???==================
 bool isdronesnear(int j){
-    for(int i=0;i<DRONE_COUNT;i++){
-        if(i!=j){
-            float distance = Vector3Distance(drones[i].position,drones[j].position);
-            if(distance<DISTANCE_BETWEEN_DRONES) return true;
-        }
+    for(int i = 0; i < j; i++){
+        float distance = Vector3Distance(drones[i].position, drones[j].position);
+        if(distance < DISTANCE_BETWEEN_DRONES) return true;
     }
     return false;
 }
-Vector3 dronepos(int j,Vector3 player){
-    Vector3 pos={0,0,0};
-    while (!isInMap(pos.x,pos.z)||isdronesnear(j)||Vector3Distance(player,pos)<DETECTION_RANGE){
-        pos = (Vector3){GetRandomValue(-50,50)*1.0f,DRONE_HEIGHT,GetRandomValue(-40,40)*1.0f};
-    }
+//===============ASSIGNING RANDOM POSITINS TO DRONE=====================
+Vector3 dronepos(int j, Vector3 player) {
+    Vector3 pos;
+    int attempts = 0;
+    do {
+        pos = (Vector3){GetRandomValue(-50, 50) * 1.0f, DRONE_HEIGHT, GetRandomValue(-40, 40) * 1.0f};
+        attempts++;
+        if (attempts > 1000) break; // safety check
+    } while (!isInMap(pos.x, pos.z) || isdronesnear(j) || Vector3Distance(player, pos) < DETECTION_RANGE);
+    
     return pos;
 }
+//===============TIME IN MINUTES AND SECONDS==========================
 void timeconversion(int *a,int*b){
     long time=GetTime();
     *a=time/60;
@@ -163,13 +172,9 @@ void timeconversion(int *a,int*b){
 }
 
 void gamewindow(){
-SetTargetFPS(60);
-SetWindowIcon(icon);
-UnloadImage(icon);
-DisableCursor();
-InitAudioDevice();
+
 Camera3D camera = {
-    .position = (Vector3){ 1.0f, 2.0f, 0.0f },
+    .position = (Vector3){ 1.0f, 2.5f, 0.0f },
     .target = (Vector3){0.0f,0.0f,0.0f},
     .up = (Vector3){ 0.0f, 1.0f, 0.0f },
     .fovy = 60.0f,
@@ -210,8 +215,8 @@ Vector3 reloadkit_position = fourlocations[GetRandomValue(0,3)];
 
 BoundingBox reload_box = GetModelBoundingBox(reloadkit);
 BoundingBox base_reloadkit_box = GetModelBoundingBox(reloadkit);
-reload_box.min = Vector3Add(reloadkit_position, base_reloadkit_box.min);
-reload_box.max = Vector3Add(reloadkit_position, base_reloadkit_box.max);
+reload_box.min = Vector3Add(reloadkit_position,(Vector3Multiply)( base_reloadkit_box.min,(Vector3){2.0f,2.0f,2.0f}));
+reload_box.max = Vector3Add(reloadkit_position,(Vector3Multiply)( base_reloadkit_box.max,(Vector3){2.0f,2.0f,2.0f}));
 
 Vector3 health_position=reloadkit_position;
 
@@ -276,7 +281,7 @@ while (!WindowShouldClose()) {
         drones[i].bound.min = Vector3Add(drones[i].position, Vector3Multiply(baseBox.min, scale));
         drones[i].bound.max = Vector3Add(drones[i].position, Vector3Multiply(baseBox.max, scale));
 
-        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && bullets > 0 && ispointed(drones[i].bound, cameraray)) {
+        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && bullets > 0 && ispointed(drones[i].bound, cameraray)&& Vector3Distance(camera.position,drones[i].position)<SHOOTING_RANGE) {
             drones[i].hit++;
             if (drones[i].hit >= DRONEHIT) {
                 drones[i].isrender = false;
@@ -305,7 +310,7 @@ while (!WindowShouldClose()) {
         
             if(playerHealth<0){
                 playerHealth=0.0f;
-              //  UnloadAssets();
+                UnloadAssets();
             }
 
             Vector3 dir = Vector3Normalize(Vector3Subtract(Vector3Add(camera.position, (Vector3){1.0f, 1.0f, 1.0f}), drones[i].position));
@@ -351,7 +356,8 @@ while (!WindowShouldClose()) {
         PlaySound(gunchuck);
     }
     //================healthkit==============
-    if (ispointed(health_box, cameraray) && Vector3Distance(camera.position,health_position) < DISTANCE_RELOADKIT){
+    
+    if (ispointed(health_box, cameraray) && Vector3Distance(camera.position,health_position) < 5.0f){
         isHvisible=true;
         if(IsKeyPressedRepeat(KEY_H))playerHealth+=INCREASE_HEALTH;
         if(playerHealth>=MAX_HEALTH) playerHealth=MAX_HEALTH;
@@ -411,16 +417,29 @@ while (!WindowShouldClose()) {
 
         DrawModel(exit_game,exitposition,0.5,WHITE);
         DrawModel(map,(Vector3){0, 0, 0}, 1.0f, WHITE); //2.6417 IN Y
-        DrawModel(reloadkit, reloadkit_position, 1.0f, WHITE);
+        DrawModel(reloadkit, reloadkit_position, 2.0f, WHITE);
+
     //  DrawBoundingBox(reload_box, RED);
     //   DrawBoundingBox(health_box, RED);
 
       for (int i = 0; i < DRONE_COUNT; i++) {
             if (drones[i].isrender) {
                 DrawModel(drones[i].model, drones[i].position, drone_scale, WHITE);
-               // DrawBoundingBox(drones[i].bound, RED);
-                DrawLine3D(drones[i].position,camera.position,RED);
-              
+
+
+                DrawCube((Vector3){
+                (drones[i].bound.min.x+drones[i].bound.max.x)/2.0f,
+                DRONE_HEIGHT+1.0f,
+                (drones[i].bound.min.z+drones[i].bound.max.z)/2.0f
+            },DRONEHIT,0.1f,0.1f,GRAY);
+
+            
+            DrawCube((Vector3){
+                (drones[i].bound.min.x+drones[i].bound.max.x)/2.0f,
+                DRONE_HEIGHT+1.0f,
+                (drones[i].bound.min.z+drones[i].bound.max.z)/2.0f
+            },DRONEHIT-drones[i].hit,0.11f,0.11f,RED);
+
             }
         }
             
@@ -459,6 +478,7 @@ while (!WindowShouldClose()) {
 void UnloadAssets();
 }
 
+//======================IS MAP IN BETWEEN====================
 bool IsObstructed(Vector3 from, Vector3 to, Model mapModel) {
     Ray ray1 = {
         .position = from,
@@ -481,77 +501,3 @@ bool IsObstructed(Vector3 from, Vector3 to, Model mapModel) {
     return false; // No obstruction
 }
 
-/*void menu(){
-    InitAudioDevice();
-    SetTargetFPS(60);
-    DisableCursor();
-
-    Font titleFont = LoadFont("assets/escape_font.fnt");
-
-    // Load background music and sound
-    Music bgMusic = LoadMusicStream("assets/menu_music.mp3");
-    Sound selectSound = LoadSound("assets/select.wav");
-    PlayMusicStream(bgMusic);
-    bgMusic.looping = true;
-
-    MenuState menuState = MENU_MAIN;
-    MainOption mainSelected = MAIN_START;
-
-
-    int screenWidth = GetScreenWidth();
-    int screenHeight = GetScreenHeight();
-
-    const char *mainOptions[2] = {"START", "EXIT"};
-
-    while (!WindowShouldClose()) {
-        UpdateMusicStream(bgMusic);
-
-        // Handle input
-        if (menuState == MENU_MAIN) {
-            if (IsKeyPressed(KEY_DOWN)) {
-                PlaySound(selectSound);
-                mainSelected = (mainSelected == MAIN_EXIT) ? MAIN_START : MAIN_EXIT;
-            } else if (IsKeyPressed(KEY_UP)) {
-                PlaySound(selectSound);
-                mainSelected = (mainSelected == MAIN_START) ? MAIN_EXIT : MAIN_START;
-            } else if (IsKeyPressed(KEY_RIGHT) && mainSelected == MAIN_START) {
-                PlaySound(selectSound);
-                gamewindow();
-            }
-        } 
-        // Drawing
-        BeginDrawing();
-        ClearBackground(BLACK);
-
-        // Title
-        const char *titleText = "ESCAPE PROTOCOL";
-        int titleSize = 80;
-        Vector2 titleSizeVec = MeasureTextEx(titleFont, titleText, titleSize, 5);
-        DrawTextEx(titleFont, titleText,
-                   (Vector2){(screenWidth - titleSizeVec.x-705)/ 2, screenHeight / 6},
-                   titleSize, 5, WHITE);
-
-        // Main Menu
-        if (menuState == MENU_MAIN) {
-            for (int i = 0; i < 2; i++) {
-                Color color = (i == mainSelected) ? YELLOW : GRAY;
-                DrawText(mainOptions[i],
-                         screenWidth / 2 - MeasureText(mainOptions[i], 40) / 2,
-                         screenHeight / 2 + i * 60,
-                         40, color);
-            }
-        }
-
-         
-        }
-
-        EndDrawing();
-
-    
-
-    // Cleanup
-    UnloadFont(titleFont);
-    UnloadMusicStream(bgMusic);
-    UnloadSound(selectSound);
-    UnloadAssets();
-}*/
