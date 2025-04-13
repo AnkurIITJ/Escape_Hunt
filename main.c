@@ -13,19 +13,19 @@
 #define SCREEN_WIDTH 1920
 #define SCREEN_HEIGHT 1080
 #define MAX_BULLETS 20
-#define DRONE_SPEED 0.3f
-#define DETECTION_RANGE 35.0f
-#define DRONE_COUNT 5
+#define DRONE_SPEED 0.2f
+#define DETECTION_RANGE 20.0f
+#define DRONE_COUNT 1
 #define MAX_HEALTH  100
-#define DRONEHIT 2
+#define DRONEHIT 3
 #define SHOOT_FRAMES 10
-#define SPEED 0.1f
 #define NEAR_DRONE 2.0f
 #define DRONE_DAMAGE 0.1f
 #define DISTANCE_RELOADKIT 3.0f
-#define DRONE_HEIGHT 17.0f
-#define DISTANCE_BETWEEN_DRONES 3.0f
+#define DRONE_HEIGHT 12.0f
+#define DISTANCE_BETWEEN_DRONES 0.5f
 #define DRONE_TIMER 1.0f
+#define INCREASE_HEALTH 10
 
 // ========== STRUCTS ==========
 typedef struct {
@@ -39,15 +39,6 @@ typedef struct {
 
     BoundingBox bound;
 } Drone;
-
-typedef enum MenuState {
-    MENU_MAIN,
-} MenuState;
-
-typedef enum MainOption {
-    MAIN_START,
-    MAIN_EXIT
-} MainOption;
 
 
 
@@ -159,11 +150,10 @@ bool isdronesnear(int j){
     return false;
 }
 Vector3 dronepos(int j,Vector3 player){
-    Vector3 pos;
-   do{
-     pos = (Vector3){GetRandomValue(-50,50)*1.0f,DRONE_HEIGHT,GetRandomValue(-40,40)*1.0f};
-   } 
-    while (!isInMap(pos.x,pos.z)&&isdronesnear(j)&&Vector3Distance(player,pos)<DETECTION_RANGE);
+    Vector3 pos={0,0,0};
+    while (!isInMap(pos.x,pos.z)||isdronesnear(j)||Vector3Distance(player,pos)<DETECTION_RANGE){
+        pos = (Vector3){GetRandomValue(-50,50)*1.0f,DRONE_HEIGHT,GetRandomValue(-40,40)*1.0f};
+    }
     return pos;
 }
 void timeconversion(int *a,int*b){
@@ -183,7 +173,7 @@ Camera3D camera = {
     .target = (Vector3){0.0f,0.0f,0.0f},
     .up = (Vector3){ 0.0f, 1.0f, 0.0f },
     .fovy = 60.0f,
-    .projection = CAMERA_PERSPECTIVE
+    .projection = CAMERA_PERSPECTIVE,
 };
 //=================setting position of exit and camera==============
 Vector2 fivelocation[5]={                                //x,z
@@ -193,6 +183,13 @@ Vector2 fivelocation[5]={                                //x,z
 {20.0f,59.9f},
 {-20.0f,59.9f}
 };
+Vector3 fourlocations[4]={
+    {15,0,19},
+    {-15,0,-19},
+    {15,0,19},
+    {-15,0,-19},
+};
+//============camera and exit==============
 int random=GetRandomValue(0,4);
 camera.position.x=fivelocation[random].x;
 camera.position.z=fivelocation[random].y;
@@ -208,17 +205,25 @@ while(random2==random);
 
 LoadAssets();
 
-Vector3 reloadkit_position = { 5, 0, 5 };
+Vector3 reloadkit_position = fourlocations[GetRandomValue(0,3)];
+
+
 BoundingBox reload_box = GetModelBoundingBox(reloadkit);
 BoundingBox base_reloadkit_box = GetModelBoundingBox(reloadkit);
 reload_box.min = Vector3Add(reloadkit_position, base_reloadkit_box.min);
 reload_box.max = Vector3Add(reloadkit_position, base_reloadkit_box.max);
 
-Vector3 health_position = { -5, 0, 5 };
+Vector3 health_position=reloadkit_position;
+
+while( Vector3Distance(health_position,reloadkit_position)==0 ){
+    health_position = fourlocations[GetRandomValue(0,3)];
+}
+
+
 BoundingBox health_box = GetModelBoundingBox(health);
 BoundingBox base_health_box = GetModelBoundingBox(health);
-health_box.min = Vector3Add(health_position, Vector3Multiply(base_health_box.min,(Vector3){0.05f,0.05f,0.05f}));
-health_box.max = Vector3Add(health_position, Vector3Multiply(base_health_box.max,(Vector3){0.05f,0.05f,0.05f}));
+health_box.min = Vector3Add(health_position, Vector3Multiply(base_health_box.min,(Vector3){0.1f,0.1f,0.1f}));
+health_box.max = Vector3Add(health_position, Vector3Multiply(base_health_box.max,(Vector3){0.1f,0.1f,0.1f}));
 
 
 for (int i = 0; i < DRONE_COUNT; i++) {
@@ -348,7 +353,7 @@ while (!WindowShouldClose()) {
     //================healthkit==============
     if (ispointed(health_box, cameraray) && Vector3Distance(camera.position,health_position) < DISTANCE_RELOADKIT){
         isHvisible=true;
-        if(IsKeyPressed(KEY_H))playerHealth+=5;
+        if(IsKeyPressedRepeat(KEY_H))playerHealth+=INCREASE_HEALTH;
         if(playerHealth>=MAX_HEALTH) playerHealth=MAX_HEALTH;
     }
     else isHvisible=false;
@@ -393,19 +398,29 @@ while (!WindowShouldClose()) {
         DrawModel(cube,(Vector3){50, 0, -20},1.0f,WHITE);//test cube for size compariosn
         DrawModel(cube,(Vector3){-50, 0, 20},1.0f,WHITE);//test cube for size compariosn
         DrawModel(cube,(Vector3){-50, 0, -20},1.0f,WHITE);//test cube for size compariosn */
-        DrawModel(health, health_position,0.05f, GRAY);
+        DrawModel(health, health_position,0.1f, GRAY);
         DrawModel(skybox, (Vector3){0, 0, 0}, 500.0f, WHITE);
-        DrawBillboard(camera,tree,(Vector3){0,15.0f/2,0},15.0f,WHITE);
+
+        DrawBillboard(camera,tree,(Vector3){8,15.0f/2,18},15.0f,WHITE);
+        DrawBillboard(camera,tree,(Vector3){-8,15.0f/2,-18},15.0f,WHITE);
+        DrawBillboard(camera,tree,(Vector3){8,15.0f/2,18},15.0f,WHITE);
+        DrawBillboard(camera,tree,(Vector3){-8,15.0f/2,-18},15.0f,WHITE);
+
+      
+        
+
         DrawModel(exit_game,exitposition,0.5,WHITE);
         DrawModel(map,(Vector3){0, 0, 0}, 1.0f, WHITE); //2.6417 IN Y
         DrawModel(reloadkit, reloadkit_position, 1.0f, WHITE);
-      DrawBoundingBox(reload_box, RED);
-        DrawBoundingBox(health_box, RED);
+    //  DrawBoundingBox(reload_box, RED);
+    //   DrawBoundingBox(health_box, RED);
 
       for (int i = 0; i < DRONE_COUNT; i++) {
             if (drones[i].isrender) {
                 DrawModel(drones[i].model, drones[i].position, drone_scale, WHITE);
-                DrawBoundingBox(drones[i].bound, RED);
+               // DrawBoundingBox(drones[i].bound, RED);
+                DrawLine3D(drones[i].position,camera.position,RED);
+              
             }
         }
             
@@ -432,7 +447,7 @@ while (!WindowShouldClose()) {
     DrawText(time_text, (SCREEN_WIDTH - MeasureText(time_text,50))/2, 10, 50, BLACK);
     DrawText(drones_text, 611-MeasureText(drones_text,30), 50, 30, YELLOW); //end at 611 x
     if(isRvisible)DrawText(reload_text,30,200,40,RED);
-    if(isHvisible)DrawText("PRESS H TO INCREASE HEALTH BY 10",30,200,40,RED);
+    if(isHvisible)DrawText("PRESS H TO INCREASE HEALTH BY 10",30,200,20,RED);
    // if(isInMap(camera.position.x,camera.position.z))DrawText("in the map",30,400,40,RED);
     
 
